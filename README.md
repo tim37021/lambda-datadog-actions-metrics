@@ -1,85 +1,19 @@
-# datadog-actions-metrics [![ts](https://github.com/int128/datadog-actions-metrics/actions/workflows/ts.yaml/badge.svg)](https://github.com/int128/datadog-actions-metrics/actions/workflows/ts.yaml) [![e2e](https://github.com/int128/datadog-actions-metrics/actions/workflows/e2e.yaml/badge.svg)](https://github.com/int128/datadog-actions-metrics/actions/workflows/e2e.yaml)
+# lambda-datadog-actions-metrics
 
-This is an action to send metrics of GitHub Actions to Datadog on an event.
-It is inspired from [yuya-takeyama/github-actions-metrics-to-datadog-action](https://github.com/yuya-takeyama/github-actions-metrics-to-datadog-action).
+This is an action to send metrics of GitHub Actions to Datadog with AWS Lambda.
 
 ## Purpose
 
-### Improve the reliability and experience of CI/CD pipeline
+The purpose is fully described in the [original repo](https://github.com/int128/datadog-actions-metrics). However, the original approach has limitations when used in an organization with many repositories. Specifically, you may need to add the hook workflow to every repository, and it becomes difficult to track new projects if they forget to add it.
 
-To collect the metrics when a workflow run is completed:
+## Setup
+**Development**
 
-```yaml
-on:
-  workflow_run:
-    workflows:
-      - '**'
-    types:
-      - completed
-
-jobs:
-  send:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: int128/datadog-actions-metrics@v1
-        with:
-          # create an API key in https://docs.datadoghq.com/account_management/api-app-keys/
-          datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
+I've written a express entry to mimic lambda execution triggered with function url. To spin it up:
+```
+bun src/express.ts
 ```
 
-For the developer experience, you can analyze the following metrics:
-
-- Time to test an application
-- Time to build and deploy an application
-
-For the reliability, you can monitor the following metrics:
-
-- Success rate of the default branch
-- Rate limit of built-in `GITHUB_TOKEN`
-
-Here is an example of screenshot in Datadog.
-
-<img width="1342" alt="image" src="https://github.com/int128/datadog-actions-metrics/assets/321266/99e813d7-8f42-4896-aba5-c66fe6b84a53">
-
-### Improve the reliability and experience of self-hosted runners
-
-For the self-hosted runners, you can monitor the following metrics for reliability and experience:
-
-- Queued time of a job
-- Count of the [lost communication with the server](https://github.com/actions-runner-controller/actions-runner-controller/issues/466) errors
-
-Here is an example of screenshot in Datadog.
-
-<img width="562" alt="image" src="https://github.com/int128/datadog-actions-metrics/assets/321266/0baba537-a5f2-4a66-98b6-e3f372f5871d">
-
-### Improve your team development process
-
-You can analyze your development activity such as number of merged pull requests.
-It helps the continuous process improvement of your team.
-
-To collect the metrics when a pull request is opened, closed or merged into main:
-
-```yaml
-on:
-  pull_request:
-    types:
-      - opened
-      - closed
-  push:
-    branches:
-      - main
-
-jobs:
-  send:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: int128/datadog-actions-metrics@v1
-        with:
-          # create an API key in https://docs.datadoghq.com/account_management/api-app-keys/
-          datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
-```
 
 ## Overview
 
