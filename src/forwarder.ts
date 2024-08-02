@@ -13,20 +13,23 @@ type WebhookForwarder = {
 }
 
 export class DatadogForwarder implements WebhookForwarder {
-  constructor(private readonly apiInstance: v2.LogsApi, private readonly tags: string[]) {}
+  constructor(
+    private readonly apiInstance: v2.LogsApi,
+    private readonly tags: string[],
+  ) {}
 
   async send(payload: string) {
     const params: v2.LogsApiSubmitLogRequest = {
       body: [
-      {
-        ddsource: "github",
-        ddtags: this.tags.join(','),
-        hostname: "i-012345678",
-        message: payload,
-        service: "lambda",
+        {
+          ddsource: 'github',
+          ddtags: this.tags.join(','),
+          hostname: 'i-012345678',
+          message: payload,
+          service: 'lambda',
         },
       ],
-      contentEncoding: "deflate",
+      contentEncoding: 'deflate',
     }
 
     await this.apiInstance.submitLog(params)
@@ -64,4 +67,3 @@ const createHttpLibraryIfHttpsProxy = () => {
     return new HttpLibrary()
   }
 }
-
