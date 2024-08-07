@@ -1,58 +1,73 @@
 import * as path from 'path'
+import * as fs from 'fs'
 import express from 'express'
 import * as lambdaLocal from 'lambda-local'
 
-const app = express()
-const port = 3000
+function main() {
+  const app = express()
+  const port = 3000
 
-// make all the content type into text
-app.use((req, res, next) => {
-  // Check if we should attempt to parse the body
-  let data = ''
-  req.on('data', (chunk) => {
-    data += chunk
+  // make all the content type into text
+  app.use((req, res, next) => {
+    // Check if we should attempt to parse the body
+    let data = ''
+    req.on('data', (chunk) => {
+      data += chunk
+    })
+    req.on('end', () => {
+      req.body = data
+      next()
+    })
   })
-  req.on('end', () => {
-    req.body = data
+
+  app.use((req, res, next) => {
+    // if content type is application/www-x-form-urlencoded, base64 encode it
+    // reference https://aws.amazon.com/tw/blogs/aws/announcing-aws-lambda-function-urls-built-in-https-endpoints-for-single-function-microservices/
+    if (!req.headers['content-type']?.startsWith('text/') && req.headers['content-type'] != 'application/json') {
+      req.body = Buffer.from(req.body as string).toString('base64')
+    }
     next()
   })
-})
 
-app.use((req, res, next) => {
-  // if content type is application/www-x-form-urlencoded, base64 encode it
-  // reference https://aws.amazon.com/tw/blogs/aws/announcing-aws-lambda-function-urls-built-in-https-endpoints-for-single-function-microservices/
-  if (!req.headers['content-type']?.startsWith('text/') && req.headers['content-type'] != 'application/json') {
-    req.body = Buffer.from(req.body as string).toString('base64')
-  }
-  next()
-})
+  // We will be listening to root (lambda function url feature)
+  app.post('/', (req, res) => {
+    ;(async () => {
+      type LambdaResponse = { statusCode: number; headers: typeof req.headers; body: string }
 
-// We will be listening to root (lambda function url feature)
-app.post('/', (req, res) => {
-  ;(async () => {
-    type LambdaResponse = { statusCode: number; headers: typeof req.headers; body: string }
+      const result = (await lambdaLocal.execute({
+        lambdaPath: path.join(__dirname, 'lambda'),
+        lambdaHandler: 'handler',
+        envfile: path.join(process.cwd(), '.env.test'),
+        timeoutMs: 10000,
+        event: {
+          headers: req.headers, // Pass on request headers
+          body: req.body as string, // Pass on request body as string
+        },
+      })) as LambdaResponse
 
-    const result = (await lambdaLocal.execute({
-      lambdaPath: path.join(__dirname, 'lambda'),
-      lambdaHandler: 'handler',
-      envfile: path.join(process.cwd(), '.env.test'),
-      timeoutMs: 10000,
-      event: {
-        headers: req.headers, // Pass on request headers
-        body: req.body as string, // Pass on request body as string
-      },
-    })) as LambdaResponse
+      // Respond to HTTP request
+      res.status(result.statusCode).set(result.headers).end(result.body)
+    })().catch((err) => console.log(err))
+  })
 
-    // Respond to HTTP request
-    res.status(result.statusCode).set(result.headers).end(result.body)
-  })().catch((err) => console.log(err))
-})
+  app.use((req, res) => {
+    console.log(`Unhandled url [${req.method}]${req.url}`)
+    res.status(404).send('Sorry, we cannot find that!')
+  })
 
-app.use((req, res) => {
-  console.log(`Unhandled url [${req.method}]${req.url}`)
-  res.status(404).send('Sorry, we cannot find that!')
-})
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`)
+  })
+}
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`)
-})
+// Check arguments
+if (!process.env.NODE_ENV) {
+  console.error('Please set NODE_ENV')
+  process.exit(1)
+}
+if (!fs.existsSync(path.join(process.cwd(), `.env.${process.env.NODE_ENV}`))) {
+  console.error(`Please create a .env.${process.env.NODE_ENV} file`)
+  process.exit(1)
+}
+
+main()
