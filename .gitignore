@@ -101,3 +101,5 @@ lib/
 /dist
 
 .env*
+
+*.zip
