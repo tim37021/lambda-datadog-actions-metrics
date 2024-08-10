@@ -15,8 +15,6 @@ const main = async (): Promise<void> => {
     preferDistributionJobMetrics: core.getBooleanInput('prefer-distribution-job-metrics'),
     preferDistributionStepMetrics: core.getBooleanInput('prefer-distribution-step-metrics'),
     sendPullRequestLabels: core.getBooleanInput('send-pull-request-labels'),
-    // only work in lambda
-    forwardWebhookToDatadog: false,
   })
 }
 

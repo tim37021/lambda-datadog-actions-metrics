@@ -8,7 +8,6 @@ import { handleWorkflowRun } from './workflowRun/handler'
 import { handlePullRequest } from './pullRequest/handler'
 import { handlePush } from './push/handler'
 import { handleSchedule } from './schedule/handler'
-import { createWebhookForwarder } from './forwarder'
 
 type Inputs = {
   githubToken: string
@@ -22,16 +21,9 @@ type Inputs = {
   preferDistributionJobMetrics: boolean
   preferDistributionStepMetrics: boolean
   sendPullRequestLabels: boolean
-
-  forwardWebhookToDatadog: boolean
 }
 
 export const run = async (context: GitHubContext, inputs: Inputs): Promise<void> => {
-  if (inputs.forwardWebhookToDatadog) {
-    const forwarder = createWebhookForwarder(inputs)
-    await forwarder.send(JSON.stringify(context.payload))
-  }
-
   const metricsClient = createMetricsClient(inputs)
 
   await handleEvent(metricsClient, context, inputs)

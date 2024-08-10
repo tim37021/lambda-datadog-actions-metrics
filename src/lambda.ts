@@ -2,6 +2,7 @@ import { Handler, APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda
 import { WorkflowRunEvent } from '@octokit/webhooks-types'
 import { GitHubContext } from './types'
 import { run } from './run'
+import { client, v2 } from '@datadog/datadog-api-client'
 
 type IncomingEvent = WorkflowRunEvent // | WorkflowJobEvent
 
@@ -29,6 +30,39 @@ function urlencodedToObject(urlEncodedString: string): Record<string, string> {
   return jsonObject
 }
 
+async function logWebhookToDatadog(message: string, tags: string[] = []): Promise<void> {
+  const configuration = client.createConfiguration({
+    authMethods: {
+      apiKeyAuth: process.env.DATADOG_API_KEY,
+    },
+  })
+  if (process.env.DATADOG_SITE) {
+    client.setServerVariables(configuration, {
+      site: process.env.DATADOG_SITE,
+    })
+  }
+  const apiInstance = new v2.LogsApi(configuration)
+
+  const params: v2.LogsApiSubmitLogRequest = {
+    body: [
+      {
+        ddsource: 'github',
+        ddtags: tags.join(','),
+        hostname: "aws-lambda",
+        message: message,
+        service: "github-actions",
+      },
+    ],
+  }
+
+  try {
+    await apiInstance.submitLog(params)
+    console.info(`Log sent to Datadog: ${message}`)
+  } catch (error) {
+    console.error(`Failed to send log to Datadog: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 export const handler: Handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   let statusCode: number
   let body: string = '{}'
@@ -41,6 +75,13 @@ export const handler: Handler = async (event: APIGatewayProxyEvent): Promise<API
 
     // construct GithubContext...
     const context = createGithubContext(parsedBody)
+    // Log webhook
+    if (process.env.FORWARD_WEBHOOK_TO_DATADOG && process.env.DATADOG_API_KEY) {
+      await logWebhookToDatadog(JSON.stringify(context.payload))
+    } else {
+      console.debug(`Receive webhook: ${JSON.stringify(context.payload)}`)
+    }
+
     if (process.env.GITHUB_TOKEN === undefined) throw new Error('GITHUB_TOKEN is not set')
     await run(context, {
       githubToken: process.env.GITHUB_TOKEN,
@@ -55,7 +96,6 @@ export const handler: Handler = async (event: APIGatewayProxyEvent): Promise<API
       preferDistributionJobMetrics: process.env.PREFER_DISTRIBUTION_JOB_METRICS === 'true',
       preferDistributionStepMetrics: process.env.PREFER_DISTRIBUTION_STEP_METRICS === 'true',
       sendPullRequestLabels: process.env.SEND_PULL_REQUEST_LABELS === 'true',
-      forwardWebhookToDatadog: process.env.FORWARD_WEBHOOK_TO_DATADOG === 'true',
     })
 
     statusCode = 200
